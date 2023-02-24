@@ -6,23 +6,23 @@
 
 char buf[1024];
 int match(char*, char*);
-
+//grep的本质是在多个文件里面进行查找存在的字符串
 void
 grep(char *pattern, int fd)
 {
   int n, m;
-  char *p, *q;
+  char *p, *q;//tmp
 
   m = 0;
-  while((n = read(fd, buf+m, sizeof(buf)-m-1)) > 0){
+  while((n = read(fd, buf+m, sizeof(buf)-m-1)) > 0){//读入的话要预留一个最后'\0'
     m += n;
     buf[m] = '\0';
     p = buf;
-    while((q = strchr(p, '\n')) != 0){
+    while((q = strchr(p, '\n')) != 0){//找到第一个出现的字符的位置
       *q = 0;
       if(match(pattern, p)){
         *q = '\n';
-        write(1, p, q+1 - p);
+        write(1, p, q+1 - p);//已经找到了的话,写进标准输出里面
       }
       p = q+1;
     }
@@ -46,7 +46,7 @@ main(int argc, char *argv[])
   pattern = argv[1];
 
   if(argc <= 2){
-    grep(pattern, 0);
+    grep(pattern, 0);//控制台标准输入
     exit(0);
   }
 

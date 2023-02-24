@@ -5,7 +5,7 @@
 
 char*
 fmtname(char *path)
-{
+{//memcpy与memmove的区别 对于重叠部分的话memcpy会出错
   static char buf[DIRSIZ+1];
   char *p;
 
@@ -15,10 +15,10 @@ fmtname(char *path)
   p++;
 
   // Return blank-padded name.
-  if(strlen(p) >= DIRSIZ)
+  if(strlen(p) >= DIRSIZ)//太长了直接进行返回
     return p;
   memmove(buf, p, strlen(p));
-  memset(buf+strlen(p), ' ', DIRSIZ-strlen(p));
+  memset(buf+strlen(p), ' ', DIRSIZ-strlen(p));//按照字节进行设置
   return buf;
 }
 
@@ -35,7 +35,7 @@ ls(char *path)
     return;
   }
 
-  if(fstat(fd, &st) < 0){
+  if(fstat(fd, &st) < 0){//查看程序的状态
     fprintf(2, "ls: cannot stat %s\n", path);
     close(fd);
     return;
@@ -54,11 +54,11 @@ ls(char *path)
     strcpy(buf, path);
     p = buf+strlen(buf);
     *p++ = '/';
-    while(read(fd, &de, sizeof(de)) == sizeof(de)){
+    while(read(fd, &de, sizeof(de)) == sizeof(de)){//读的话是会一个文件一个文件的读吗
       if(de.inum == 0)
         continue;
       memmove(p, de.name, DIRSIZ);
-      p[DIRSIZ] = 0;
+      p[DIRSIZ] = 0;//最后的结束的字符
       if(stat(buf, &st) < 0){
         printf("ls: cannot stat %s\n", buf);
         continue;

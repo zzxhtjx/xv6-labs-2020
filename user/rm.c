@@ -17,7 +17,7 @@ main(int argc, char *argv[])
       fprintf(2, "rm: %s failed to delete\n", argv[i]);
       break;
     }
-  }
+  }//直接解绑之后就会进行删除文件
 
   exit(0);
 }
