@@ -121,7 +121,7 @@ sys_sysinfo(void){
   if(argaddr(0, &addr) < 0)  return -1;
   uint64 freemem = get_mem();
   struct proc *p = myproc();
-  uint64 nproc = get_proc() + (uint64)1UL;
+  uint64 nproc = get_proc();
   if(copyout(p->pagetable, addr, (char*)&freemem, sizeof(freemem)) < 0) return -1;
   if(copyout(p->pagetable, addr + sizeof(freemem) , (char*)&nproc, sizeof(nproc)) ) return -1;
   return 0;
