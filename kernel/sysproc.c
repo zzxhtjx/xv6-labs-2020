@@ -95,3 +95,34 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+//trace 
+uint64
+sys_trace(void){
+  int mask;
+  if(argint(0, &mask) < 0)
+    return -1;
+  myproc()->mask = mask;
+  return 0;
+}
+
+
+//need to copy the descrition about the process to user point
+
+/*
+copyout
+Copy from kernel to user.
+Copy len bytes from src to virtual address dstva in a given page table.
+Return 0 on success, -1 on error.
+*/
+uint64
+sys_sysinfo(void){
+  uint64 addr;
+  if(argaddr(0, &addr) < 0)  return -1;
+  uint64 freemem = get_mem();
+  struct proc *p = myproc();
+  uint64 nproc = get_proc() + (uint64)1UL;
+  if(copyout(p->pagetable, addr, (char*)&freemem, sizeof(freemem)) < 0) return -1;
+  if(copyout(p->pagetable, addr + sizeof(freemem) , (char*)&nproc, sizeof(nproc)) ) return -1;
+  return 0;
+}

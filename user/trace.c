@@ -9,7 +9,7 @@ main(int argc, char *argv[])
   int i;
   char *nargv[MAXARG];
 
-  if(argc < 3 || (argv[1][0] < '0' || argv[1][0] > '9')){
+  if(argc < 3 || (argv[1][0] < '0' || argv[1][0] > '9')){//判断掩码和参数
     fprintf(2, "Usage: %s mask command\n", argv[0]);
     exit(1);
   }
@@ -22,6 +22,6 @@ main(int argc, char *argv[])
   for(i = 2; i < argc && i < MAXARG; i++){
     nargv[i-2] = argv[i];
   }
-  exec(nargv[0], nargv);
+  exec(nargv[0], nargv);//直接进行执行
   exit(0);
 }

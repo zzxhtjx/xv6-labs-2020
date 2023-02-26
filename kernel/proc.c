@@ -274,7 +274,7 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
-
+  np->mask = p->mask;//保存记录
   np->parent = p;
 
   // copy saved user registers.
@@ -692,4 +692,17 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+//get the num of the process
+uint64
+get_proc(void){
+  uint64 ans = 0;
+  for(int i = 0; i < NPROC; i++){
+    if(proc[i].state != UNUSED){
+      if(proc[i].killed)  continue;
+      ans++;
+    } 
+  }
+  return ans;
 }

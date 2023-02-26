@@ -76,7 +76,7 @@ testmem() {
 }
 
 void
-testcall() {
+testcall() {//边界判断
   struct sysinfo info;
   
   if (sysinfo(&info) < 0) {
@@ -92,12 +92,11 @@ testcall() {
 
 void testproc() {
   struct sysinfo info;
-  uint64 nproc;
+  uint64 nproc ;
   int status;
   int pid;
-  
   sinfo(&info);
-  nproc = info.nproc;
+  nproc = info.nproc;//初始化
 
   pid = fork();
   if(pid < 0){
@@ -124,6 +123,7 @@ int
 main(int argc, char *argv[])
 {
   printf("sysinfotest: start\n");
+  //查看程序的调用状态，检测系统调用,内存分配还有程序的个数
   testcall();
   testmem();
   testproc();
