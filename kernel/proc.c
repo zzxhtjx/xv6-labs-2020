@@ -20,6 +20,7 @@ static void wakeup1(struct proc *chan);
 static void freeproc(struct proc *p);
 
 extern char trampoline[]; // trampoline.S
+extern pagetable_t kernel_pagetable;
 
 // initialize the proc table at boot time.
 void
@@ -38,10 +39,11 @@ procinit(void)
       if(pa == 0)
         panic("kalloc");
       uint64 va = KSTACK((int) (p - proc));
-      kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+      kvmmap(kernel_pagetable, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
       p->kstack = va;
+      p->kpte = (pagetable_t)kalloc();
   }
-  kvminithart();
+  kvminithart(kernel_pagetable);
 }
 
 // Must be called with interrupts disabled,
@@ -112,7 +114,7 @@ found:
     release(&p->lock);
     return 0;
   }
-
+  memmove((void*)p->kpte, (void*)kernel_pagetable,(uint)PGSIZE);
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -150,6 +152,7 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  memset((void*)p->kpte, 0, PGSIZE);
 }
 
 // Create a user page table for a given process,
@@ -473,14 +476,15 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+        kvminithart(p->kpte);
         swtch(&c->context, &p->context);
-
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
 
         found = 1;
       }
+      kvminithart(kernel_pagetable);
       release(&p->lock);
     }
 #if !defined (LAB_FS)
