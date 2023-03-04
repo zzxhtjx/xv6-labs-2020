@@ -5,7 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
-
+#include "spinlock.h"
+#include "proc.h"
 /*
  * the kernel's page table.
  */
@@ -47,10 +48,46 @@ kvminit()
   kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
 }
 
+pagetable_t kvminit_new(){
+  pagetable_t kernel_pagetable = (pagetable_t) kalloc();
+  if(!kernel_pagetable) return 0;//没有地址的话直接进行返回
+  memset(kernel_pagetable, 0, PGSIZE);
+
+  // uart registers
+  uvmmap(kernel_pagetable, UART0, UART0, PGSIZE, PTE_R | PTE_W);
+
+  // virtio mmio disk interface
+  uvmmap(kernel_pagetable, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+
+  // CLINT
+  uvmmap(kernel_pagetable, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+
+  // PLIC
+  uvmmap(kernel_pagetable, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
+
+  // map kernel text executable and read-only.
+  uvmmap(kernel_pagetable, KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
+
+  // map kernel data and the physical RAM we'll make use of.
+  uvmmap(kernel_pagetable, (uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
+
+  // map the trampoline for trap entry/exit to
+  // the highest virtual address in the kernel.
+  uvmmap(kernel_pagetable, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+  return kernel_pagetable;
+}
+
 // Switch h/w page table register to the kernel's page table,
 // and enable paging.
 void
 kvminithart()
+{
+  w_satp(MAKE_SATP(kernel_pagetable));
+  sfence_vma();
+}
+
+void
+kvminithart_new(pagetable_t kernel_pagetable)
 {
   w_satp(MAKE_SATP(kernel_pagetable));
   sfence_vma();
@@ -121,6 +158,13 @@ kvmmap(uint64 va, uint64 pa, uint64 sz, int perm)
     panic("kvmmap");
 }
 
+void
+uvmmap(pagetable_t kpte,uint64 va, uint64 pa, uint64 sz, int perm)
+{
+  if(mappages(kpte, va, sz, pa, perm) != 0)
+    panic("kvmmap");
+}
+
 // translate a kernel virtual address to
 // a physical address. only needed for
 // addresses on the stack.
@@ -132,7 +176,7 @@ kvmpa(uint64 va)
   pte_t *pte;
   uint64 pa;
   
-  pte = walk(kernel_pagetable, va, 0);
+  pte = walk(myproc()->kpte, va, 0);
   if(pte == 0)
     panic("kvmpa");
   if((*pte & PTE_V) == 0)
@@ -289,6 +333,23 @@ freewalk(pagetable_t pagetable)
   kfree((void*)pagetable);
 }
 
+void
+freewalk_new(pagetable_t pagetable)
+{
+  // there are 2^9 = 512 PTEs in a page table.
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
+      // this PTE points to a lower-level page table.
+      uint64 child = PTE2PA(pte);
+      freewalk_new((pagetable_t)child);//忘记了调用的时候
+      pagetable[i] = 0;
+    } else if(pte & PTE_V){
+      pagetable[i] = 0;
+    }
+  }
+  kfree((void*)pagetable);
+}
 // Free user memory pages,
 // then free page-table pages.
 void
@@ -396,6 +457,7 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
     srcva = va0 + PGSIZE;
   }
   return 0;
+  // return copyin_new(pagetable, dst, srcva, len);
 }
 
 // Copy a null-terminated string from user to kernel.
@@ -438,5 +500,41 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return 0;
   } else {
     return -1;
+  }
+  // return copyinstr_new(pagetable, dst, srcva, max);
+}
+
+int solprint(pagetable_t* ptr,int level,int va){//标识的是成立与否
+  pagetable_t pagetable = *ptr;
+  pte_t pte = (pagetable[va]);
+  if(pte & PTE_V) {//判断标志位
+    *ptr = (pagetable_t)PTE2PA(pte);
+    printf("..");
+    for(int i = 1;i <= (2-level); i++){
+      printf(" ..");
+    }
+    printf("%d: pte %p pa %p\n", va, pte, *ptr);
+    return 1;
+  } else {
+    return 0;//不成立
+  }
+}
+
+
+void vmprint(pagetable_t pagetable){
+  printf("page table %p\n", pagetable);//地址的形式
+  for(int i = 0; i < 512; i++){
+    pagetable_t tmp1 = pagetable;
+    int ret = solprint(&tmp1, 2, i);
+    if(!ret)  continue;
+    for(int j = 0; j < 512; j++){
+      pagetable_t tmp2 = tmp1;
+      int ret = solprint(&tmp2, 1, j);
+      if(!ret)  continue;
+      for(int k = 0; k < 512; k++){
+        pagetable_t tmp3 = tmp2;
+        solprint(&tmp3, 0, k);
+      }
+    }
   }
 }
