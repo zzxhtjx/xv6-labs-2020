@@ -26,11 +26,9 @@ void
 procinit(void)
 {
   struct proc *p;
-  int i = 0;
   initlock(&pid_lock, "nextpid");
-  for(p = proc; p < &proc[NPROC]; p++,i++) {
+  for(p = proc; p < &proc[NPROC]; p++) {
       initlock(&p->lock, "proc");
-
       // Allocate a page for the process's kernel stack.
       // Map it high in memory, followed by an invalid
       // guard page.
@@ -230,7 +228,7 @@ userinit(void)
   // and data into it.
   uvminit(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
-
+  u2kvmcopy(p->pagetable, p->kpte, 0, p->sz);
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0;      // user program counter
   p->trapframe->sp = PGSIZE;  // user stack pointer
@@ -253,11 +251,15 @@ growproc(int n)
 
   sz = p->sz;
   if(n > 0){
+    if (PGROUNDUP(sz + n) >= PLIC){
+      return -1;
+    }
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
       return -1;
     }
+    u2kvmcopy(p->pagetable, p->kpte, sz - n, sz );//变量被改了啊
   } else if(n < 0){
-    sz = uvmdealloc(p->pagetable, sz, sz + n);
+    sz = uvmdealloc(p->pagetable, sz, sz + n);//不释放的?
   }
   p->sz = sz;
   return 0;
@@ -283,6 +285,7 @@ fork(void)
     release(&np->lock);
     return -1;
   }
+  u2kvmcopy(np->pagetable, np->kpte, 0, p->sz);
   np->sz = p->sz;
 
   np->parent = p;
@@ -496,7 +499,7 @@ scheduler(void)
     }
 #if !defined (LAB_FS)
     if(found == 0) {
-      
+      kvminithart();
       intr_on();
       asm volatile("wfi");
     }

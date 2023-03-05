@@ -171,11 +171,15 @@ pagetable_t     kvminit_new(void);
 void            uvmmap(pagetable_t,uint64, uint64, uint64, int);
 void            freewalk_new(pagetable_t);
 void            kvminithart_new(pagetable_t);
+int             copyin_new(pagetable_t , char *, uint64, uint64);
+int             copyinstr_new(pagetable_t , char *, uint64, uint64);
+void            u2kvmcopy(pagetable_t, pagetable_t, uint64, uint64);
 #ifdef SOL_COW
 #else
 int             uvmcopy(pagetable_t, pagetable_t, uint64);
 #endif
 void            uvmfree(pagetable_t, uint64);
+void            kvmfree(pagetable_t, uint64);
 void            uvmunmap(pagetable_t, uint64, uint64, int);
 void            uvmclear(pagetable_t, uint64);
 uint64          walkaddr(pagetable_t, uint64);

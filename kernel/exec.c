@@ -7,6 +7,7 @@
 #include "defs.h"
 #include "elf.h"
 
+extern struct proc proc[NPROC];
 static int loadseg(pde_t *pgdir, uint64 addr, struct inode *ip, uint offset, uint sz);
 
 int
@@ -18,7 +19,7 @@ exec(char *path, char **argv)
   struct elfhdr elf;
   struct inode *ip;
   struct proghdr ph;
-  pagetable_t pagetable = 0, oldpagetable;
+  pagetable_t pagetable = 0, oldpagetable;//初始化一个空间
   struct proc *p = myproc();
 
   begin_op();
@@ -74,7 +75,7 @@ exec(char *path, char **argv)
   uvmclear(pagetable, sz-2*PGSIZE);
   sp = sz;
   stackbase = sp - PGSIZE;
-
+  u2kvmcopy(pagetable, p->kpte, 0, sz);
   // Push argument strings, prepare rest of stack in ustack.
   for(argc = 0; argv[argc]; argc++) {
     if(argc >= MAXARG)
