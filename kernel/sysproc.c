@@ -62,8 +62,8 @@ sys_sleep(void)
     return -1;
   acquire(&tickslock);
   printf("backtrace:\n");
-  printf("%p\n", r_ra());
   uint64 fp = r_fp();
+  backtrace(r_fp());
   while(PGROUNDDOWN(fp) != PGROUNDUP(fp)){
     printf("%p\n", *((uint64*)(fp - 8)));
     fp = *((uint64*)(fp - 16));
@@ -76,7 +76,6 @@ sys_sleep(void)
     }
     sleep(&ticks, &tickslock);
   }
-  // backtrace(r_fp());
   release(&tickslock);
 
   return 0;
@@ -136,7 +135,6 @@ sys_sigreturn(void){
   memmove(p->trapframe, p->tmpframe, PGSIZE);
   p->run = 0;//防止在内部没有返回之前再次调用
   p->status = 0;
-  // p->trapframe->epc += 4;//是本条执行执行之前还是执行完之后进入用户陷入
   release(&tickslock);  
   return 0;
 }

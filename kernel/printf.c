@@ -114,11 +114,7 @@ printf(char *fmt, ...)
     release(&pr.lock);
 }
 void backtrace(uint64 fp){
-  printf("%p\n",(fp - 8));//打印的是返回地址，但是找的话是帧指针
-  if(PGROUNDDOWN(fp) == PGROUNDUP(fp))  {
-    return;
-  }
-  backtrace(*((uint64*)(fp - 16)));
+  printf("%p\n",r_ra());//打印的是返回地址，但是找的话是帧指针
 }
 
 void
