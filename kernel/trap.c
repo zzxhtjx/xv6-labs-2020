@@ -10,12 +10,13 @@ struct spinlock tickslock;
 uint ticks;
 
 extern char trampoline[], uservec[], userret[];
+extern struct proc proc[NPROC]; 
 
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
 
 extern int devintr();
-
+extern pagetable_t kernel_pagetable;
 void
 trapinit(void)
 {
@@ -65,6 +66,10 @@ usertrap(void)
     intr_on();
 
     syscall();
+    if((p->run == p->ticks) && (p->status == 1) && (p->trapframe->a7 == 23)){
+      p->status = 2;
+      // printf("\nzzx1 : %d %p %p\n",p->status, p->trapframe->epc, p->tmpframe->epc);
+    }    
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
@@ -77,9 +82,22 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if(which_dev == 2){
+    //先加上去
+    if((p->run != -1) && (p->status == 0)){
+      if(p->run < p->ticks){
+        p->run ++;
+      }
+      if((p->run == p->ticks)){//完成了一个周期
+        // printf("\nzzx0 : %d %p\n",p->status, p->trapframe->epc);
+        memmove(p->tmpframe, p->trapframe, PGSIZE);
+        p->trapframe->epc = p->handler;
+        p->status = 1;
+        //记录转换之后还需要进行保存一份原来的寄存器
+      }      
+    }
     yield();
-
+  }
   usertrapret();
 }
 
