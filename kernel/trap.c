@@ -67,7 +67,49 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+  } 
+  else if(r_scause() == 15 || r_scause() == 13){
+      uint64 addr = r_stval();
+      uint64 va = PGROUNDDOWN(addr);
+      if(va < p->sz){//如果是小于原本的
+        //直接进行手动的分配,一种之前没有进行分配,那么的话就是直接进行分配(数据全部都是空的)
+        //1*没有写的权限
+        char* pa = kalloc();//物理地址
+        if(!pa) {
+          goto err;
+        }
+        pte_t* pte = walk(p->pagetable, va, 0);
+        if(pte == 0){
+          //那么就是没有地址啦
+          memset(pa, 0, PGSIZE);
+          int ret = mappages(p->pagetable, va, PGSIZE, (uint64)pa, PTE_W|PTE_X|PTE_R|PTE_U);
+          if(ret != 0){
+            kfree(pa);//释放分配的空间
+            goto err;
+          }
+        }else {
+          uint64 pa = walkaddr(p->pagetable, va); 
+          //the special judge
+          if(!pa){
+            void* pa = kalloc();
+            memset(pa, 0, PGSIZE);
+            mappages(p->pagetable, va, PGSIZE, (uint64)pa, PTE_W|PTE_X|PTE_R|PTE_U);
+          }//就是原本是空的啊
+          else {
+            if(!sol(va ,pa))//如果成功的话返回1
+            {
+              goto err;
+            } 
+          }
+        }
+      }else {
+        goto err;//表示的是越界
+      }
+      //还有一种已经进行分配了,fork那么需要解除映射进行重新分配
+  }
+  else{
+    //if the virtual address >= oldsz and <= newsz, you should alloc the physical address for it;
+    err:
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;
