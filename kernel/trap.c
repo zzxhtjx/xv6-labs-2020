@@ -72,6 +72,7 @@ usertrap(void)
       uint64 addr = r_stval();
       uint64 va = PGROUNDDOWN(addr);
       void* pa = kalloc();
+      // memset(pa, 0, PGSIZE);//忘记初始化了
       if((addr < p->sz) && ((uint64)pa > 0) && (PGROUNDUP(p->trapframe->sp) - 1 < addr)){//如果是小于原本的
         //直接进行手动的分配,一种之前没有进行分配,那么的话就是直接进行分配(数据全部都是空的)
         mappages(p->pagetable, va, PGSIZE, (uint64)pa, PTE_W|PTE_X|PTE_R|PTE_U);

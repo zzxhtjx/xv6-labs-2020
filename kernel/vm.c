@@ -106,8 +106,20 @@ walkaddr(pagetable_t pagetable, uint64 va)
   pte = walk(pagetable, va, 0);
   if(pte == 0)
     return 0;
-  if((*pte & PTE_V) == 0)
+  if((*pte & PTE_V) == 0){
+    struct proc *p = myproc();
+    if(va >= p->sz) return 0;
+    
+      // malloc a new page
+    char *mem = kalloc();
+    if(mem == 0) return 0;
+      // map a page for the new address
+    if(mappages(pagetable,PGROUNDDOWN(va),PGSIZE,(uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+      kfree(mem);
     return 0;
+ } 
+ return (uint64)mem;
+  }
   if((*pte & PTE_U) == 0)
     return 0;
   pa = PTE2PA(*pte);
