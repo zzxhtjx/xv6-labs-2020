@@ -50,8 +50,11 @@ sys_sbrk(void)
   if(n > 0) myproc()->sz += n;
   else {
   //the fun growproc would add the sz
-    if(growproc(n) < 0)
-      return -1;
+    if(addr + n > 0){
+      int sz = uvmdealloc(myproc()->pagetable, addr, addr + n);
+      myproc()->sz = sz;
+    }
+    else return -1;
   } 
   return addr;
 }

@@ -191,9 +191,7 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       continue;
     if(do_free){
       uint64 pa = PTE2PA(*pte);
-      int cnt = get(a, pa);
-      if(cnt == 1)//否则的话就不进行删除
-        kfree((void*)pa);
+      kfree((void*)pa);
     }
     *pte = 0;
   }
@@ -346,6 +344,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
+  char *mem;
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       continue;//还没有进行分配啊
@@ -353,18 +352,18 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       continue;
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    uvmunmap(old ,i, 1, 0);//首先先进行删除权限
-    if(mappages(old, i, PGSIZE, (uint64)pa, flags&(~PTE_W)) != 0){// is and but not the or
+    if((mem = kalloc()) == 0)
       goto err;
-    }
-    if(mappages(new, i, PGSIZE, (uint64)pa, flags&(~PTE_W)) != 0){//不能写,如果需要进行写入的话是需要进行特判
+    memmove(mem, (char*)pa, PGSIZE);
+    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
+      kfree(mem);
       goto err;
     }
   }
   return 0;
 
  err:
-  uvmunmap(new, 0, i / PGSIZE, 0);
+  uvmunmap(new, 0, i / PGSIZE, 1);
   return -1;
 }
 
@@ -472,36 +471,4 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
-}
-
-int check(pagetable_t pagetable, uint64 va, uint64 pa){
-  if(walkaddr(pagetable, va) == pa) return 1;
-  return 0;
-}
-
-int get(uint64 va, uint64 pa){
-  int cnt = 0;
-  for(int i = 0; i < NPROC; i++){
-    //maybe there is no used
-    if(proc[i].state == UNUSED) continue;
-    if(check(proc[i].pagetable ,va, pa) == 1) cnt++;
-  }  
-  return cnt;
-}
-
-int sol(uint64 va, uint64 pa){
-  //第二种的话就是你需要进行哪一个的修改那么你就对于你原本的进行修改就好了,但是会有一个问题,这个空间什么时候进行释放
-  int cnt = get(va, pa);
-  if(cnt == 1){
-    uvmunmap(myproc()->pagetable, va, 1, 0);//并不删除这个表
-    mappages(myproc()->pagetable, va, PGSIZE, pa, PTE_W|PTE_X|PTE_R|PTE_U);
-    //使用完需要进行删除
-    return 1;//成功了
-  }
-  void* panew = kalloc();
-  if(!panew)  return 0;
-  memmove(panew, (void*)pa, PGSIZE);
-  uvmunmap(myproc()->pagetable, va, 1, 0);//并不删除这个表
-  mappages(myproc()->pagetable, va, PGSIZE, (uint64)panew, PTE_W|PTE_X|PTE_R|PTE_U);
-  return 1;//成功了
 }
