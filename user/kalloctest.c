@@ -43,6 +43,7 @@ void test1(void)
   int n, m;
   printf("start test1\n");  
   m = ntas(0);
+  //create 3 process   the new create will be exit -1 and then be wait by the father
   for(int i = 0; i < NCHILD; i++){
     int pid = fork();
     if(pid < 0){
