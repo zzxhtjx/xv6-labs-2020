@@ -26,9 +26,9 @@ struct {
 void
 kinit()
 {
-  char buf[10] = {0};
   for(int i = 0; i < NCPU; i++){
-    snprintf(buf , 6, "kmem%d", i);
+    char buf[10] = {0};
+    snprintf(buf , 7, "kmem%d", i);
     initlock(&kmem[i].lock, buf);
   }
   freerange(end, (void*)PHYSTOP);
