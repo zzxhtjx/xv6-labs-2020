@@ -397,10 +397,38 @@ bmap(struct inode *ip, uint bn)
       a[bn] = addr = balloc(ip->dev);
       log_write(bp);
     }
-    brelse(bp);
+    brelse(bp);//bread will add the count of referrence then release
     return addr;
   }
 
+  bn -= NINDIRECT;
+  // printf("zzx : %d\n",bn);
+  if(bn < (NINDIRECT * NINDIRECT) ){
+    // printf("second entry\n");
+    //a为二级指针,b是一级指针,c是数据本身
+    int x = bn / NINDIRECT, y = bn % NINDIRECT;
+    if((addr = ip->addrs[NDIRECT2]) == 0)
+      ip->addrs[NDIRECT2] = addr = balloc(ip->dev);
+    bp = bread(ip->dev, addr);//get the first point 
+    a = (uint*)bp->data;
+    if((addr = a[x]) == 0){
+      a[x] = addr = balloc(ip->dev);
+      log_write(bp);//???
+      //then get the second  
+    }
+
+    struct buf* bp1;
+    uint addr1, *b;
+    bp1 = bread(ip->dev, addr);//获得一级指针
+    b = (uint*)bp1->data;
+    if((addr1 = b[y]) == 0){
+      b[y] = addr1 = balloc(ip->dev);
+      log_write(bp1);
+    }    
+    brelse(bp1);
+    brelse(bp);//bread will add the count of referrence then release
+    return addr1;  
+  }
   panic("bmap: out of range");
 }
 
@@ -430,6 +458,28 @@ itrunc(struct inode *ip)
     brelse(bp);
     bfree(ip->dev, ip->addrs[NDIRECT]);
     ip->addrs[NDIRECT] = 0;
+  }
+
+  //紧接着把二级索引进行删除
+  if(ip->addrs[NDIRECT2]){
+    struct buf* arr = bread(ip->dev, ip->addrs[NDIRECT2]); 
+    uint* aa = (uint*)arr->data;
+    for(int i = 0; i < NINDIRECT; i++){
+        if(aa[i]){
+          bp = bread(ip->dev, aa[i]);
+          a = (uint*)bp->data;
+          for(j = 0; j < NINDIRECT; j++){
+            if(a[j])
+              bfree(ip->dev, a[j]);
+          }
+          brelse(bp);
+          bfree(ip->dev, aa[i]);
+          aa[i] = 0;          
+        }
+    }
+    brelse(arr);
+    bfree(ip->dev, ip->addrs[NDIRECT2]);
+    ip->addrs[NDIRECT2] = 0;
   }
 
   ip->size = 0;
