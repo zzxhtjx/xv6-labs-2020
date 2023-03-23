@@ -21,7 +21,9 @@ main(int argc, char *argv[])
 {
   cleanup();
   testsymlink();
+  printf("end test\n");
   concur();
+  printf("end concur\n");
   exit(failed);
 }
 
@@ -45,6 +47,7 @@ static int
 stat_slink(char *pn, struct stat *st)
 {
   int fd = open(pn, O_RDONLY | O_NOFOLLOW);
+  printf("pxm fd = %d\n", fd);
   if(fd < 0)
     return -1;
   if(fstat(fd, st) != 0)
@@ -73,7 +76,7 @@ testsymlink(void)
 
   if(write(fd1, buf, sizeof(buf)) != 4)
     fail("failed to write to a");
-
+  printf("wr end\n");
   if (stat_slink("/testsymlink/b", &st) != 0)
     fail("failed to stat b");
   if(st.type != T_SYMLINK)

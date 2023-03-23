@@ -1,3 +1,4 @@
+#include "param.h"
 struct file {
   enum { FD_NONE, FD_PIPE, FD_INODE, FD_DEVICE } type;
   int ref; // reference count
@@ -25,6 +26,7 @@ struct inode {
   short major;
   short minor;
   short nlink;
+  char sympath[MAXPATH];
   uint size;
   uint addrs[NDIRECT + 2];
 };
