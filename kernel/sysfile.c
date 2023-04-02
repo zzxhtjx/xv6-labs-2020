@@ -484,3 +484,72 @@ sys_pipe(void)
   }
   return 0;
 }
+
+uint64
+sys_mmap(void){
+  int len;
+  int prot;
+  int flags;
+  int fd;
+
+  if(argint(1, &len) < 0 || argint(2, &prot) < 0 || argint(3, &flags) < 0 || argint(4, &fd) < 0)
+    return -1;   
+
+  //首先的话直接进行分配空间
+  uint64 addr = myproc()->sz;
+  if(growproc_new(len) < 0)
+    return -1;
+  struct proc* p = myproc();
+  int i = 0;
+  for(i = 0; i < 16; i++){
+    if(p->tmp[i].use == 0){
+      p->tmp[i].use = 1;
+      p->tmp[i].address = addr;
+      p->tmp[i].length = len;
+      p->tmp[i].permissions = prot;
+      p->tmp[i].flags = flags;
+      if((p->tmp[i].flags & MAP_SHARED) && (!p->ofile[fd]->writable)){
+        return -1;
+      }
+      p->tmp[i].fp = p->ofile[fd];
+      filedup(p->tmp[i].fp);
+      return addr;
+    }
+  }
+  return -1;//相当于没有找到
+  return addr;
+}
+
+uint64
+sys_munmap(void){
+  uint64 addr;
+  int len;
+  uint64 err = 0xffffffffffffffff;
+  if(argint(1, &len) < 0 || argaddr(0, &addr) < 0)
+    return err;     
+  //对此,我们直接进行实现一个初始化,如果
+  uint64 end = addr + len;
+  struct proc* p = myproc();
+  for(int i = 0; i < 16; i++){
+    if(p->tmp[i].use){
+      if( (addr >= p->tmp[i].address && addr < (p->tmp[i].address + p->tmp[i].length)) && (end >= p->tmp[i].address && end <= (p->tmp[i].address + p->tmp[i].length))){
+        if(p->tmp[i].flags & MAP_SHARED){
+          //那么就是直接进行计算写回
+          filewrite(p->tmp[i].fp, addr, len);
+        }
+        uvmunmap(p->pagetable, addr, len/(PGSIZE), 1);
+        p->tmp[i].length -= len;
+        if(!p->tmp[i].length){
+          fileclose(p->tmp[i].fp);
+          p->tmp[i].use = 0;
+          p->tmp[i].fp = 0;//清的清除的时候的表现
+        }
+        if(addr == p->tmp[i].address){
+          p->tmp[i].address = addr + len;//变化之后的长度
+        }
+      }
+      return 0;
+    }
+  }
+  return err;
+}

@@ -5,6 +5,10 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
+#include "kernel/fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -260,6 +264,24 @@ growproc(int n)
   return 0;
 }
 
+int
+growproc_new(int n)
+{
+  uint sz;
+  struct proc *p = myproc();
+
+  sz = p->sz;
+  if(n > 0){
+    if((sz = uvmalloc_new(p->pagetable, sz, sz + n)) == 0) {
+      return -1;
+    }
+  } else if(n < 0){
+    sz = uvmdealloc(p->pagetable, sz, sz + n);
+  }
+  p->sz = sz;
+  return 0;
+}
+
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
 int
@@ -294,6 +316,13 @@ fork(void)
   for(i = 0; i < NOFILE; i++)
     if(p->ofile[i])
       np->ofile[i] = filedup(p->ofile[i]);
+  
+  for(int i = 0; i < 16; i++){
+    memmove(&np->tmp[i], &p->tmp[i], sizeof(p->tmp[i]));
+    if(p->tmp[i].fp){
+      filedup(np->tmp[i].fp);
+    }
+  }
   np->cwd = idup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
@@ -353,6 +382,23 @@ exit(int status)
     }
   }
 
+  for(int i = 0; i < 16; i++){
+    if(p->tmp[i].use){
+        uint64 addr = p->tmp[i].address;
+        int len = p->tmp[i].length;
+        if(p->tmp[i].flags & MAP_SHARED){
+          //那么就是直接进行计算写回
+          filewrite(p->tmp[i].fp, addr, len);
+        }
+        // uvmunmap(p->pagetable, addr, len/(PGSIZE), 1);
+        p->tmp[i].length -= len;
+        if(!p->tmp[i].length){
+          fileclose(p->tmp[i].fp);
+        }
+        p->tmp[i].length = 0;
+        p->tmp[i].fp = 0;
+    }      
+  }
   begin_op();
   iput(p->cwd);
   end_op();

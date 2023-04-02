@@ -5,6 +5,10 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
+#include "kernel/fcntl.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -68,9 +72,42 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
-    printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    p->killed = 1;
+    int sc = r_scause();
+    int flag = 1;
+    if(sc == 15 || sc ==13 ){
+      uint64 addr = r_stval();
+      if(addr <= p->sz){//表示的是在范围内
+        for(int i = 0; i < 16; i++){
+          if(addr >= p->tmp[i].address && (addr - p->tmp[i].address) <= p->tmp[i].length){
+            char* mem = kalloc();
+            if(mem == 0)  break;
+            memset(mem, 0, PGSIZE);//初始化
+            uint64 va = PGROUNDDOWN(addr);
+            int flags = PTE_X|PTE_U|PTE_V;
+            if(p->tmp[i].permissions & PROT_READ){
+              flags|=PTE_R;  
+            }
+            if(p->tmp[i].permissions & PROT_WRITE){
+              flags|=PTE_W;
+            }
+            mappages(p->pagetable, va, PGSIZE, (uint64)mem, flags);
+            uint64 l = (p->tmp[i].address >= va)?(p->tmp[i].address):va;
+            uint64 a = p->tmp[i].address + p->tmp[i].length, b = va + PGSIZE;
+            uint64 r = (a >= b)?b:a;
+            ilock(p->tmp[i].fp->ip);
+            readi(((p->tmp[i]).fp)->ip, 1, (uint64)l, l - p->tmp[i].address, r-l);
+            ilock(p->tmp[i].fp->ip);
+            flag = 0;
+            break;
+          }
+        }
+      }
+    }
+    if(flag){
+      printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+      p->killed = 1;          
+    }
   }
 
   if(p->killed)
